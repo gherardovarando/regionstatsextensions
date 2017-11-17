@@ -9,11 +9,8 @@
 
 'use strict'
 
-const inside = require('point-in-polygon');
-
-
+const inside = require('point-in-polygon')
 const path = require('path')
-const nativeImage = require('electron').nativeImage
 const {
   dialog
 } = require('electron').remote
@@ -26,14 +23,9 @@ const {
   Modal,
   util
 } = require('electrongui')
-const TreeList = require('electrongui').TreeList.TreeList
-
-const fs = require('fs');
+const fs = require('fs')
 
 //const RegionAnalyzer = require('./_modules/RegionAnalyzer.js');
-
-
-const leafcsv = require('leaflet-csvtiles')
 
 class RegionStatsExtension extends GuiExtension {
 
@@ -52,11 +44,13 @@ class RegionStatsExtension extends GuiExtension {
 
 
   activate() {
-    this.appendMenu()
+    if (this._checkMap()) {
+      this.appendMenu()
+      super.activate()
+    }
   }
 
   deactivate() {
-    util.empty(this.element, this.element.firstChild)
     this.removeMenu()
     super.deactivate()
   }
@@ -81,7 +75,7 @@ class RegionStatsExtension extends GuiExtension {
 
 
 
-  checkMap() {
+  _checkMap() {
     if (!GuiExtension.is(this.gui.extensions.extensions.MapExtension))
       this.gui.alerts.add('MapExtension is not loaded', 'warning')
     return GuiExtension.is(this.gui.extensions.extensions.MapExtension)
@@ -130,38 +124,7 @@ class RegionStatsExtension extends GuiExtension {
     //let csv = new L.CsvTiles("vps136.cesvima.upm.es/maps/Hippocampus_vglut1/points/points_Hipocampo_HBP21_id4_corte_40_vGlut1_X0_Y0.tif.csv")
     //let csv = new L.CsvTiles("vps136.cesvima.upm.es/maps/Hippocampus_vglut1/points/points_Hipocampo_HBP21_id4_corte_40_vGlut1_X{X}_Y{Y}.tif.csv")
     //let csv = new L.CsvTiles("/home/cahernanz/Descargas/configuration.json")
-    console.log('ttttttttttttttttttttttt')
-    //let csv = new L.CsvTiles("http://vps136.cesvima.upm.es/maps/Hippocampus_vglut1/points/points_Hipocampo_HBP21_id4_corte_40_vGlut1_X{x}_Y{y}.tif.csv")
-    let csv = new L.CsvTiles("http://vps136.cesvima.upm.es/maps/Hippocampus_vglut1/points/points_Hipocampo_HBP21_id4_corte_40_vGlut1_X0_Y0.tif.csv", {
-      //let csv = new L.CsvTiles("http://vps136.cesvima.upm.es/maps/Hippocampus_vgat/vGat_map_all_tiles/0/0/1.png")
 
-      "tileSize": [
-        1024,
-        1024
-      ],
-      "size": [
-        45056,
-        28672
-      ],
-      "bounds": [
-        [-162.90909090904,
-          0
-        ],
-        [
-          0,
-          256
-        ]
-      ],
-      "encoding": "utf8",
-      "localRS": true,
-      "minZoom": 6,
-      "color": "red",
-      "radius": 4,
-      "fillColor": "red"
-    })
-    //deberiamos construir la url
-    console.log('CSV: ', csv)
-    console.log('ttttttttttttttttttttttfffffffffft2222222')
 
     let layer = gui.extensions.extensions.MapExtension.activeConfiguration.layers
     let centroids = gui.extensions.extensions.MapExtension.activeConfiguration.layers.centroids_vGlut1
@@ -170,33 +133,34 @@ class RegionStatsExtension extends GuiExtension {
     let url = centroids.url
     let basepath = gui.extensions.extensions.MapExtension.activeConfiguration.basePath
     let completepath = basepath + url
-    let boolean
-        let boolean2
     //  console.log('completepath: ' + completepath)
+    //
+    let csv = new L.CsvTiles(url, centroids.options)
 
     regions.map((reg) => {
-      let references = csv._getReferences(reg.layer.getBounds())
+      let references = csv.getReferences(reg.layer.getBounds())
       let n = 0
       let m = 0
-      references.map((references) => {
-        csv._read(references, (point) => {
+
+      references.map((ref) => {
+        csv.read(ref, (point) => {
           n++
           console.log("N: ", n)
           console.log("Point: ", point)
 
           //boolean = this.pointinpolygon(point, references)/////ok
-          boolean = inside(point, references)
           console.log("boolean: ", boolean)
-                    //console.log("boolean2: ", boolean2)
-          if (boolean == true) {
+          //console.log("boolean2: ", boolean2)
+          let poly = (reg.configuration.latlngs[0]).map((a) => {
+            return([a.lng, a.lat])
+          })
+          if (inside([point.lng, point.lat], poly)) {
             m++
             console.log("m: ", m)
           }
           console.log("m2: ", m)
-        })
-        console.log("N total: ", n)
-      })
-      console.log("N total2: ", n)
+        }) console.log("N total: ", n)
+      }) console.log("N total2: ", n)
 
     })
 
