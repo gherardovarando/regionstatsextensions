@@ -31,7 +31,7 @@ class RegionStatsExtension extends GuiExtension {
 
   constructor(gui) {
     super(gui, {
-      image: path.join(__dirname, "res", "img", "gm.png"), // not working
+    //  image: path.join(__dirname, "res", "img", "gm.png"), // not working
       menuLabel: 'RegionStats',
       menuTemplate: [{
         label: 'Show stats',
@@ -44,10 +44,10 @@ class RegionStatsExtension extends GuiExtension {
 
 
   activate() {
-    if (this._checkMap()) {
+  //  if (this._checkMap()) {
       this.appendMenu()
       super.activate()
-    }
+  //  }
   }
 
   deactivate() {
@@ -75,11 +75,11 @@ class RegionStatsExtension extends GuiExtension {
 
 
 
-  _checkMap() {
-    if (!GuiExtension.is(this.gui.extensions.extensions.MapExtension))
+/*  _checkMap() {
+    if (!this.GuiExtension.is(this.gui.extensions.extensions.MapExtension))
       this.gui.alerts.add('MapExtension is not loaded', 'warning')
     return GuiExtension.is(this.gui.extensions.extensions.MapExtension)
-  }
+  }*/
 
   checkActiveConf() {
     if (!GuiExtension.is(this.gui.extensions.extensions.MapExtension.activeConfiguration))
@@ -126,17 +126,16 @@ class RegionStatsExtension extends GuiExtension {
     //let csv = new L.CsvTiles("/home/cahernanz/Descargas/configuration.json")
 
 
-    let layer = gui.extensions.extensions.MapExtension.activeConfiguration.layers
-    let centroids = gui.extensions.extensions.MapExtension.activeConfiguration.layers.centroids_vGlut1
+    let layer = this.gui.extensions.extensions.MapExtension.activeConfiguration.layers
+    let centroids = this.gui.extensions.extensions.MapExtension.activeConfiguration.layers.centroids_vGlut1
 
     let type = centroids.type
     let url = centroids.url
-    let basepath = gui.extensions.extensions.MapExtension.activeConfiguration.basePath
+    let basepath = this.gui.extensions.extensions.MapExtension.activeConfiguration.basePath
     let completepath = basepath + url
     //  console.log('completepath: ' + completepath)
     //
-    let csv = new L.CsvTiles(url, centroids.options)
-
+    let csv = new L.CsvTiles(completepath, centroids.options)
     regions.map((reg) => {
       let references = csv.getReferences(reg.layer.getBounds())
       let n = 0
@@ -149,7 +148,7 @@ class RegionStatsExtension extends GuiExtension {
           console.log("Point: ", point)
 
           //boolean = this.pointinpolygon(point, references)/////ok
-          console.log("boolean: ", boolean)
+        //  console.log("boolean: ", boolean)
           //console.log("boolean2: ", boolean2)
           let poly = (reg.configuration.latlngs[0]).map((a) => {
             return([a.lng, a.lat])
@@ -159,8 +158,8 @@ class RegionStatsExtension extends GuiExtension {
             console.log("m: ", m)
           }
           console.log("m2: ", m)
-        }) console.log("N total: ", n)
-      }) console.log("N total2: ", n)
+        })
+      })
 
     })
 
