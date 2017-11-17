@@ -1,11 +1,22 @@
 {
   "name": "regionstatsextension",
-  "version": "1.0.0",
-  "description": "It uses [GraphicsMagick](http://www.graphicsmagick.org/) tool for opening, displaying, converting and analysing images.",
+  "version": "0.0.1",
+  "description": "",
   "main": "RegionStatsExtension.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
   },
+  "keywords": [
+    "leaflet",
+    "csvTiles",
+    "spatial statistics",
+    "GuiExtension",
+    "electrongui"
+  ],
   "author": "Carlos Hernanz",
-  "license": "GPL-3.0"
+  "license": "MIT",
+  "dependencies": {
+    "electrongui": "^0.7.6",
+    "point-in-polygon": "^1.0.1"
+  }
 }
