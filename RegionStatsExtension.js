@@ -31,7 +31,7 @@ class RegionStatsExtension extends GuiExtension {
 
   constructor(gui) {
     super(gui, {
-    //  image: path.join(__dirname, "res", "img", "gm.png"), // not working
+      //  image: path.join(__dirname, "res", "img", "gm.png"), // not working
       menuLabel: 'RegionStats',
       menuTemplate: [{
         label: 'Show stats',
@@ -44,10 +44,10 @@ class RegionStatsExtension extends GuiExtension {
 
 
   activate() {
-  //  if (this._checkMap()) {
-      this.appendMenu()
-      super.activate()
-  //  }
+    //  if (this._checkMap()) {
+    this.appendMenu()
+    super.activate()
+    //  }
   }
 
   deactivate() {
@@ -75,11 +75,11 @@ class RegionStatsExtension extends GuiExtension {
 
 
 
-/*  _checkMap() {
-    if (!this.GuiExtension.is(this.gui.extensions.extensions.MapExtension))
-      this.gui.alerts.add('MapExtension is not loaded', 'warning')
-    return GuiExtension.is(this.gui.extensions.extensions.MapExtension)
-  }*/
+  /*  _checkMap() {
+      if (!this.GuiExtension.is(this.gui.extensions.extensions.MapExtension))
+        this.gui.alerts.add('MapExtension is not loaded', 'warning')
+      return GuiExtension.is(this.gui.extensions.extensions.MapExtension)
+    }*/
 
   checkActiveConf() {
     if (!GuiExtension.is(this.gui.extensions.extensions.MapExtension.activeConfiguration))
@@ -140,44 +140,40 @@ class RegionStatsExtension extends GuiExtension {
       let references = csv.getReferences(reg.layer.getBounds())
       let n = 0
       let m = 0
-
+      let alert = this.gui.alerts.add('Counting...','progress')
       references.map((ref) => {
         csv.read(ref, (point) => {
-          n++
-          console.log("N: ", n)
-          console.log("Point: ", point)
 
           //boolean = this.pointinpolygon(point, references)/////ok
-        //  console.log("boolean: ", boolean)
+          //  console.log("boolean: ", boolean)
           //console.log("boolean2: ", boolean2)
           let poly = (reg.configuration.latlngs[0]).map((a) => {
-            return([a.lng, a.lat])
+            return ([a.lng, a.lat])
           })
           if (inside([point.lng, point.lat], poly)) {
             m++
-            console.log("m: ", m)
           }
-          console.log("m2: ", m)
+        }, () => {
+          n++
+          alert.setBodyText(`${n}/${references.length}`)
+          if (n === references.length){
+            this.gui.alerts.add(`${m} points in region ${reg.configuration.name}`)
+          }
+        }, ()=>{
+          n++
+          alert.setBodyText(`${n}/${references.length}`)
+          if (n === references.length){
+            this.gui.alerts.add(`${m} points in region ${reg.configuration.name}`)
+          }
         })
       })
 
     })
 
-    // for (i = 0; i < regions.length; i++) {
-    //
-    //   bounds[i] = gui.extensions.extensions.MapExtension.layersControl.selectedRegions[i].layer.getBounds()
-    //   console.log('bounds: ',  bounds[i])
-    //   references[i] = csv._getReferences(bounds[i])
-    //   //references[i] =  bounds[i]._getReferences
-    //   console.log('references: ' , references[i]) //_getReferences
-    //   readpolygon[i] = csv._read(references[i][0])
-    //   console.log('readpolygon: ' , readpolygon[i]) //_getReferences
-    //
-    //
-    //
-    // }
 
-  } //activeConfiguration. layers
+  }
+
+
 
   //////////////////////////////////////////////////
   //////////////////////////////////////////////////
@@ -213,7 +209,6 @@ class RegionStatsExtension extends GuiExtension {
       if (intersect) inside = !inside;
     }
     return inside;
-    console.log("Inside: ", inside)
   }
   ///////////////////////////////////////////////////
   ///////////////////////////////////////////////////
@@ -229,7 +224,7 @@ class RegionStatsExtension extends GuiExtension {
 
 class PointsCounting extends Task {
 
-  constructor(polygon, points, size) {
+  constructor(polygon, points) {
     let name = `Points counting`;
     let details = `Counting in ${polygon._configuration.name} using ${points.name}`;
     let scale = points.size / size;
@@ -241,7 +236,7 @@ class PointsCounting extends Task {
   run(callback) {
     super.run();
     let pol = this.polygon;
-    let ch = fork(`${__dirname}/childCount.js`);
+    let ch = fork(path.join(__dirname, 'src', 'childCount.js'));
     ch.on('message', (m) => {
       switch (m.x) {
         case 'complete':
