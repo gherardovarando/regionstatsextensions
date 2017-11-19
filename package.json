@@ -17,6 +17,7 @@
   "license": "MIT",
   "dependencies": {
     "electrongui": "^0.7.6",
+    "leaflet-csvtiles": "^0.2.6",
     "point-in-polygon": "^1.0.1"
   }
 }

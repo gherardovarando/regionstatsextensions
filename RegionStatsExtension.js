@@ -12,206 +12,219 @@
 const inside = require('point-in-polygon')
 const path = require('path')
 const {
-  dialog
+    dialog
 } = require('electron').remote
 const {
-  SplitPane,
-  Task,
-  ButtonsContainer,
-  GuiExtension,
-  Grid,
-  Modal,
-  util
+    SplitPane,
+    Task,
+    ButtonsContainer,
+    GuiExtension,
+    Grid,
+    Modal,
+    util,
+    ProgressBar
 } = require('electrongui')
 const fs = require('fs')
-
+require('leaflet-csvtiles')
 //const RegionAnalyzer = require('./_modules/RegionAnalyzer.js');
 
 class RegionStatsExtension extends GuiExtension {
 
-  constructor(gui) {
-    super(gui, {
-      //  image: path.join(__dirname, "res", "img", "gm.png"), // not working
-      menuLabel: 'RegionStats',
-      menuTemplate: [{
-        label: 'Show stats',
-        click: () => {
-          this.Stats()
-        }
-      }]
-    })
-  }
-
-
-  activate() {
-    //  if (this._checkMap()) {
-    this.appendMenu()
-    super.activate()
-    //  }
-  }
-
-  deactivate() {
-    this.removeMenu()
-    super.deactivate()
-  }
-
-
-
-  Stats() {
-    let reg = []
-    let point = []
-    reg = this.findRegionsToCompute()
-
-    this.findCsvTiles(reg);
-
-    //point = this.findCsvTiles(reg);
-
-    //pointinpolygon(point, polygon)
-    //this.pointinpolygon(point, reg)
-
-  }
-
-
-
-
-
-  /*  _checkMap() {
-      if (!this.GuiExtension.is(this.gui.extensions.extensions.MapExtension))
-        this.gui.alerts.add('MapExtension is not loaded', 'warning')
-      return GuiExtension.is(this.gui.extensions.extensions.MapExtension)
-    }*/
-
-  checkActiveConf() {
-    if (!GuiExtension.is(this.gui.extensions.extensions.MapExtension.activeConfiguration))
-      this.gui.alerts.add('No active configurations', 'warning')
-    return GuiExtension.is(this.gui.extensions.extensions.MapExtension.activeConfiguration)
-  }
-
-
-  findRegionsToCompute() {
-    let i = 0
-    let regionsreturned = []
-    //  if (!this.checkMap()) return
-    let regions = this.gui.extensions.extensions.MapExtension.layersControl.selectedRegions
-    console.log('regions: ', regions)
-    console.log('size of regions array: ', regions.length)
-
-    for (i = 0; i < regions.length; i++) {
-      //console.log(i)
-      if (regions[i].configuration.type == "rectangle") {
-        regionsreturned.push(regions[i])
-        console.log("\n\n Rectangle \n\n") //push a vector
-      } else if (regions[i].configuration.type == "polygon") {
-        regionsreturned.push(regions[i])
-        console.log("\n\n Polygon \n\n") /*contar puntos*/
-      }
-    }
-    console.log('regionsreturned: ', regionsreturned)
-    return regionsreturned
-  }
-
-
-  /*encontrar los csvtiles*/
-  findCsvTiles(regions) {
-    let i = 0
-    let bounds = []
-    let references = []
-    let readpolygon = []
-
-    //if (!this.checkActiveConf()) return
-
-    //leafcsv = new L.CsvTiles(url, options) //vps136.cesvima.upm.es/maps/Hippocampus_vglut1/points/points_Hipocampo_HBP21_id4_corte_40_vGlut1_X0_Y0.tif.csv
-    //let csv = new L.CsvTiles("vps136.cesvima.upm.es/maps/Hippocampus_vglut1/points/points_Hipocampo_HBP21_id4_corte_40_vGlut1_X0_Y0.tif.csv")
-    //let csv = new L.CsvTiles("vps136.cesvima.upm.es/maps/Hippocampus_vglut1/points/points_Hipocampo_HBP21_id4_corte_40_vGlut1_X{X}_Y{Y}.tif.csv")
-    //let csv = new L.CsvTiles("/home/cahernanz/Descargas/configuration.json")
-
-
-    let layer = this.gui.extensions.extensions.MapExtension.activeConfiguration.layers
-    let centroids = this.gui.extensions.extensions.MapExtension.activeConfiguration.layers.centroids_vGlut1
-
-    let type = centroids.type
-    let url = centroids.url
-    let basepath = this.gui.extensions.extensions.MapExtension.activeConfiguration.basePath
-    let completepath = basepath + url
-    //  console.log('completepath: ' + completepath)
-    //
-    let csv = new L.CsvTiles(completepath, centroids.options)
-    regions.map((reg) => {
-      let references = csv.getReferences(reg.layer.getBounds())
-      let n = 0
-      let m = 0
-      let alert = this.gui.alerts.add('Counting...','progress')
-      references.map((ref) => {
-        csv.read(ref, (point) => {
-
-          //boolean = this.pointinpolygon(point, references)/////ok
-          //  console.log("boolean: ", boolean)
-          //console.log("boolean2: ", boolean2)
-          let poly = (reg.configuration.latlngs[0]).map((a) => {
-            return ([a.lng, a.lat])
-          })
-          if (inside([point.lng, point.lat], poly)) {
-            m++
-          }
-        }, () => {
-          n++
-          alert.setBodyText(`${n}/${references.length}`)
-          if (n === references.length){
-            this.gui.alerts.add(`${m} points in region ${reg.configuration.name}`)
-          }
-        }, ()=>{
-          n++
-          alert.setBodyText(`${n}/${references.length}`)
-          if (n === references.length){
-            this.gui.alerts.add(`${m} points in region ${reg.configuration.name}`)
-          }
+    constructor(gui) {
+        Papa.SCRIPT_PATH = require.resolve('papaparse') //to be sure
+        super(gui, {
+            //  image: path.join(__dirname, "res", "img", "gm.png"), // not working
+            menuLabel: 'RegionStats',
+            menuTemplate: [{
+                label: 'Show stats',
+                click: () => {
+                    this.Stats()
+                }
+            }]
         })
-      })
-
-    })
-
-
-  }
-
-
-
-  //////////////////////////////////////////////////
-  //////////////////////////////////////////////////
-  /**
-   * check if a given point is inside a polygon
-   * @param  {array} point   2 dimensions vector
-   * @param  {polygon} polygon vector of 2dim vectors components,
-   * @return {logical}
-   */
-  pointinpolygon(point, polygon) {
-    if (!polygon) {
-      return true;
     }
 
-    // ray-casting algorithm based on
-    // http://www.ecse.rpi.edu/Homepages/wrf/Research/Short_Notes/pnpoly.html
-    var x = point[0],
-      y = point[1]; // extract x and y form point
 
-    //convert latlngs to a vector of coordinates
-    var vs = polygon;
-
-    var inside = false; //initialize inside variable to false
-
-    //ray-casting algorithm
-    for (var i = 0, j = vs.length - 1; i < vs.length; j = i++) {
-      var xi = vs[i][0],
-        yi = vs[i][1];
-      var xj = vs[j][0],
-        yj = vs[j][1];
-      var intersect = ((yi > y) != (yj > y)) &&
-        (x < (xj - xi) * (y - yi) / (yj - yi) + xi);
-      if (intersect) inside = !inside;
+    activate() {
+        //  if (this._checkMap()) {
+        this.appendMenu()
+        super.activate()
+        //  }
     }
-    return inside;
-  }
-  ///////////////////////////////////////////////////
-  ///////////////////////////////////////////////////
+
+    deactivate() {
+        this.removeMenu()
+        super.deactivate()
+    }
+
+
+
+    Stats() {
+        let reg = []
+        let point = []
+        reg = this.findRegionsToCompute()
+
+        this.findCsvTiles(reg);
+
+        //point = this.findCsvTiles(reg);
+
+        //pointinpolygon(point, polygon)
+        //this.pointinpolygon(point, reg)
+
+    }
+
+
+
+
+
+    /*  _checkMap() {
+        if (!this.GuiExtension.is(this.gui.extensions.extensions.MapExtension))
+          this.gui.alerts.add('MapExtension is not loaded', 'warning')
+        return GuiExtension.is(this.gui.extensions.extensions.MapExtension)
+      }*/
+
+    checkActiveConf() {
+        if (!GuiExtension.is(this.gui.extensions.extensions.MapExtension.activeConfiguration))
+            this.gui.alerts.add('No active configurations', 'warning')
+        return GuiExtension.is(this.gui.extensions.extensions.MapExtension.activeConfiguration)
+    }
+
+
+    findRegionsToCompute() {
+        let i = 0
+        let regionsreturned = []
+        //  if (!this.checkMap()) return
+        let regions = this.gui.extensions.extensions.MapExtension.layersControl.selectedRegions
+
+        for (i = 0; i < regions.length; i++) {
+            //console.log(i)
+            if (regions[i].configuration.type == "rectangle") {
+                regionsreturned.push(regions[i])
+            } else if (regions[i].configuration.type == "polygon") {
+                regionsreturned.push(regions[i])
+            }
+        }
+        return regionsreturned
+    }
+
+
+    /*encontrar los csvtiles*/
+    findCsvTiles(regions) {
+        let i = 0
+        let bounds = []
+        let references = []
+        let readpolygon = []
+
+        //if (!this.checkActiveConf()) return
+
+        //leafcsv = new L.CsvTiles(url, options) //vps136.cesvima.upm.es/maps/Hippocampus_vglut1/points/points_Hipocampo_HBP21_id4_corte_40_vGlut1_X0_Y0.tif.csv
+        //let csv = new L.CsvTiles("vps136.cesvima.upm.es/maps/Hippocampus_vglut1/points/points_Hipocampo_HBP21_id4_corte_40_vGlut1_X0_Y0.tif.csv")
+        //let csv = new L.CsvTiles("vps136.cesvima.upm.es/maps/Hippocampus_vglut1/points/points_Hipocampo_HBP21_id4_corte_40_vGlut1_X{X}_Y{Y}.tif.csv")
+        //let csv = new L.CsvTiles("/home/cahernanz/Descargas/configuration.json")
+
+        let mapext = this.gui.extensions.extensions.MapExtension
+        let active = mapext.activeConfiguration
+        let layers = active.layers
+        let id = util.findKeyId('csvTiles', layers, 'type')
+        let centroids = layers[id]
+
+
+
+        let type = centroids.type
+        let url = centroids.url
+        let basepath = this.gui.extensions.extensions.MapExtension.activeConfiguration.basePath
+        let completepath = basepath + url
+        //  console.log('completepath: ' + completepath)
+        //
+        centroids.options.worker = true
+        let csv = new L.CsvTiles(completepath, centroids.options)
+        this.csv = csv
+        let alert = this.gui.alerts.add('Counting ... ', '')
+        let tot = 0
+        let done = 0
+        regions.map((reg) => {
+            let item = mapext.layersControl.regionsWidget.items[reg.configuration._id]
+            let pb = new ProgressBar(item)
+            pb.setHeight(2)
+            let references = csv.getReferences(reg.layer.getBounds())
+            tot = tot + references.length
+            let n = 0
+            let m = 0
+            references.map((ref) => {
+                csv.read(ref, (point) => {
+                    //boolean = this.pointinpolygon(point, references)/////ok
+                    //  console.log("boolean: ", boolean)
+                    //console.log("boolean2: ", boolean2)
+                    let poly = (reg.configuration.latlngs[0]).map((a) => {
+                        return ([a.lng, a.lat])
+                    })
+                    if (inside([point.lng, point.lat], poly)) {
+                        m++
+                    }
+                }, () => {
+                    n++
+                    done++
+                    alert.setBodyText(`${(100 * done/tot).toPrecision(2)}%`)
+                    pb.setBar(100 * n / references.length)
+                    if (n === references.length) {
+                        pb.remove()
+                        this.gui.alerts.add(`${m} points in region ${reg.configuration.name}`)
+                    }
+                }, () => {
+                    n++
+                    done++
+                    alert.setBodyText(`${(100 * done/tot).toPrecision(2)}%`)
+                    if (n === references.length) {
+                        pb.remove()
+                        this.gui.alerts.add(`${m} points in region ${reg.configuration.name}`)
+                    }
+                })
+            })
+
+        })
+
+
+    }
+
+
+
+    //////////////////////////////////////////////////
+    //////////////////////////////////////////////////
+    /**
+     * check if a given point is inside a polygon
+     * @param  {array} point   2 dimensions vector
+     * @param  {polygon} polygon vector of 2dim vectors components,
+     * @return {logical}
+     */
+    pointinpolygon(point, polygon) {
+        if (!polygon) {
+            return true;
+        }
+
+        // ray-casting algorithm based on
+        // http://www.ecse.rpi.edu/Homepages/wrf/Research/Short_Notes/pnpoly.html
+        var x = point[0],
+            y = point[1]; // extract x and y form point
+
+        //convert latlngs to a vector of coordinates
+        var vs = polygon;
+
+        var inside = false; //initialize inside variable to false
+
+        //ray-casting algorithm
+        for (var i = 0, j = vs.length - 1; i < vs.length; j = i++) {
+            var xi = vs[i][0],
+                yi = vs[i][1];
+            var xj = vs[j][0],
+                yj = vs[j][1];
+            var intersect = ((yi > y) != (yj > y)) &&
+                (x < (xj - xi) * (y - yi) / (yj - yi) + xi);
+            if (intersect) inside = !inside;
+        }
+        return inside;
+    }
+    ///////////////////////////////////////////////////
+    ///////////////////////////////////////////////////
 
 
 
@@ -224,54 +237,54 @@ class RegionStatsExtension extends GuiExtension {
 
 class PointsCounting extends Task {
 
-  constructor(polygon, points) {
-    let name = `Points counting`;
-    let details = `Counting in ${polygon._configuration.name} using ${points.name}`;
-    let scale = points.size / size;
-    super(name, details, gui);
-    this.polygon = extractPolygonArray(polygon.getLatLngs(), scale);
-    this.points = points;
-  }
-
-  run(callback) {
-    super.run();
-    let pol = this.polygon;
-    let ch = fork(path.join(__dirname, 'src', 'childCount.js'));
-    ch.on('message', (m) => {
-      switch (m.x) {
-        case 'complete':
-          if (typeof callback === 'function') callback(m);
-          ch.kill();
-          this.success();
-          break;
-        case 'step':
-          this.updateProgress((m.prog / m.tot) * 100);
-          break;
-        case 'error':
-          this.fail(m.error + "error");
-          ch.kill();
-          break;
-        default:
-          null
-      }
-    });
-    ch.send({
-      job: 'points',
-      polygon: pol,
-      points: this.points
-    });
-    this.childProcess = ch;
-  }
-
-  cancel() {
-    if (super.cancel()) {
-      if (this.childProcess instanceof ChildProcess) {
-        this.childProcess.kill();
-      }
-      return true;
+    constructor(polygon, points) {
+        let name = `Points counting`;
+        let details = `Counting in ${polygon._configuration.name} using ${points.name}`;
+        let scale = points.size / size;
+        super(name, details, gui);
+        this.polygon = extractPolygonArray(polygon.getLatLngs(), scale);
+        this.points = points;
     }
-    return false;
-  }
+
+    run(callback) {
+        super.run();
+        let pol = this.polygon;
+        let ch = fork(path.join(__dirname, 'src', 'childCount.js'));
+        ch.on('message', (m) => {
+            switch (m.x) {
+                case 'complete':
+                    if (typeof callback === 'function') callback(m);
+                    ch.kill();
+                    this.success();
+                    break;
+                case 'step':
+                    this.updateProgress((m.prog / m.tot) * 100);
+                    break;
+                case 'error':
+                    this.fail(m.error + "error");
+                    ch.kill();
+                    break;
+                default:
+                    null
+            }
+        });
+        ch.send({
+            job: 'points',
+            polygon: pol,
+            points: this.points
+        });
+        this.childProcess = ch;
+    }
+
+    cancel() {
+        if (super.cancel()) {
+            if (this.childProcess instanceof ChildProcess) {
+                this.childProcess.kill();
+            }
+            return true;
+        }
+        return false;
+    }
 }
 
 ////////////////////////////////////////////////////
