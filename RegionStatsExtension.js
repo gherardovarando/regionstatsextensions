@@ -1,7 +1,7 @@
 /**
  * @author : gherardo varando (gherardo.varando@gmail.com) //carlos
  *
- * @license: MenuItem
+ * @license: MIT
  PEGAR
 
 
@@ -15,18 +15,12 @@ const {
   dialog
 } = require('electron').remote
 const {
-  SplitPane,
-  Task,
-  ButtonsContainer,
   GuiExtension,
-  Grid,
-  Modal,
   util,
   ProgressBar
 } = require('electrongui')
 const fs = require('fs')
 require('leaflet-csvtiles')
-//const RegionAnalyzer = require('./_modules/RegionAnalyzer.js');
 
 class RegionStatsExtension extends GuiExtension {
 
@@ -46,10 +40,10 @@ class RegionStatsExtension extends GuiExtension {
 
 
   activate() {
-    //  if (this._checkMap()) {
-    this.appendMenu()
-    super.activate()
-    //  }
+    if (this._checkMapExtension()) {
+      this.appendMenu()
+      super.activate()
+    }
   }
 
   deactivate() {
@@ -77,17 +71,19 @@ class RegionStatsExtension extends GuiExtension {
 
 
 
-  /*  _checkMap() {
-      if (!this.GuiExtension.is(this.gui.extensions.extensions.MapExtension))
-        this.gui.alerts.add('MapExtension is not loaded', 'warning')
-      return GuiExtension.is(this.gui.extensions.extensions.MapExtension)
-    }*/
-
-  checkActiveConf() {
-    if (!GuiExtension.is(this.gui.extensions.extensions.MapExtension.activeConfiguration))
-      this.gui.alerts.add('No active configurations', 'warning')
-    return GuiExtension.is(this.gui.extensions.extensions.MapExtension.activeConfiguration)
+  _checkMapExtension() {
+    if (!GuiExtension.is(this.gui.extensions.extensions.MapExtension)) {
+      this.gui.alerts.add('MapExtension is not loaded, cant use RegionsStats', 'warning')
+    }
+    console.log(this.gui.extensions.extensions.MapExtension)
+    return GuiExtension.is(this.gui.extensions.extensions.MapExtension)
   }
+
+  // checkActiveConf() { /// this is wrong ...
+  //   if (!GuiExtension.is(this.gui.extensions.extensions.MapExtension.activeConfiguration))
+  //     this.gui.alerts.add('No active configurations', 'warning')
+  //   return GuiExtension.is(this.gui.extensions.extensions.MapExtension.activeConfiguration)
+  // }
 
 
   findRegionsToCompute() {
@@ -107,17 +103,18 @@ class RegionStatsExtension extends GuiExtension {
     return regionsreturned
   }
 
-  computeOnCreation() {
+  // when a region is created on the map it computes the stats
+  computeOnCreation() { //just an example, it should be possible to enable/disable cumputing on creation
     let mapext = this.gui.extensions.extensions.MapExtension
     let builder = mapext.builder
     builder.on('load:layer', (e) => {
-
       if (e.configuration.type === 'polygon' || e.configuration.type === 'rectangle') this.findCsvTiles([e])
     })
   }
 
 
   /*encontrar los csvtiles*/
+  // the name is wrong
   findCsvTiles(regions) {
     let i = 0
     let bounds = []
@@ -231,71 +228,9 @@ class RegionStatsExtension extends GuiExtension {
     }
     return inside;
   }
-  ///////////////////////////////////////////////////
-  ///////////////////////////////////////////////////
-
-
-
-
-
-
 
 }
-///////////////////////////////////////////////////
 
-class PointsCounting extends Task {
-
-  constructor(polygon, points) {
-    let name = `Points counting`;
-    let details = `Counting in ${polygon._configuration.name} using ${points.name}`;
-    let scale = points.size / size;
-    super(name, details, gui);
-    this.polygon = extractPolygonArray(polygon.getLatLngs(), scale);
-    this.points = points;
-  }
-
-  run(callback) {
-    super.run();
-    let pol = this.polygon;
-    let ch = fork(path.join(__dirname, 'src', 'childCount.js'));
-    ch.on('message', (m) => {
-      switch (m.x) {
-        case 'complete':
-          if (typeof callback === 'function') callback(m);
-          ch.kill();
-          this.success();
-          break;
-        case 'step':
-          this.updateProgress((m.prog / m.tot) * 100);
-          break;
-        case 'error':
-          this.fail(m.error + "error");
-          ch.kill();
-          break;
-        default:
-          null
-      }
-    });
-    ch.send({
-      job: 'points',
-      polygon: pol,
-      points: this.points
-    });
-    this.childProcess = ch;
-  }
-
-  cancel() {
-    if (super.cancel()) {
-      if (this.childProcess instanceof ChildProcess) {
-        this.childProcess.kill();
-      }
-      return true;
-    }
-    return false;
-  }
-}
-
-////////////////////////////////////////////////////
 
 
 module.exports = RegionStatsExtension
