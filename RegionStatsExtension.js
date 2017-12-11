@@ -1,15 +1,26 @@
-/**
- * @author : gherardo varando (gherardo.varando@gmail.com) //carlos
- *
- * @license: MIT
- PEGAR
+// Copyright (c) 2017 Gherardo Varando (gherardo.varando@gmail.com)
+//
+// Permission is hereby granted, free of charge, to any person obtaining a copy
+// of this software and associated documentation files (the "Software"), to deal
+// in the Software without restriction, including without limitation the rights
+// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+// copies of the Software, and to permit persons to whom the Software is
+// furnished to do so, subject to the following conditions:
+//
+// The above copyright notice and this permission notice shall be included in all
+// copies or substantial portions of the Software.
+//
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+// SOFTWARE.
 
-
- */
 
 'use strict'
 
-const inside = require('point-in-polygon')
 const path = require('path')
 const {
   dialog
@@ -17,25 +28,56 @@ const {
 const {
   GuiExtension,
   util,
-  ProgressBar
+  ProgressBar,
+  Modal,
+  input
 } = require('electrongui')
 const fs = require('fs')
 require('leaflet-csvtiles')
+const {
+  area,
+  inside,
+  isRegion
+} = require('./src/geometry.js')
+const reg = ['polygon', 'rectangle', 'circle']
+
 
 class RegionStatsExtension extends GuiExtension {
 
   constructor(gui) {
-    Papa.SCRIPT_PATH = require.resolve('papaparse') //to be sure
+    if (Papa) Papa.SCRIPT_PATH = require.resolve('papaparse') //to be sure
     super(gui, {
-      //  image: path.join(__dirname, "res", "img", "gm.png"), // not working
-      menuLabel: 'RegionStats',
+      menuLabel: 'Region Stats',
       menuTemplate: [{
-        label: 'Show stats',
+        label: 'Set statistics',
         click: () => {
-          this.Stats()
+          //this.setStats()
+        }
+      }, {
+        label: 'Auto stats',
+        type: 'checkbox',
+        click: (item) => {
+          if (item.checked) {
+            this.computeOnCreation()
+            this.gui.alerts.add('Statistics will now be computed on creation', 'success')
+          } else {
+            this.computeOffCreation()
+          }
+        }
+      }, {
+        label: 'Add to details',
+        type: 'checkbox',
+        click: (item) => {
+          this._options.details = item.checked
+        }
+      }, {
+        label: 'Stats for selected regions',
+        click: () => {
+          this.stats()
         }
       }]
     })
+    this._options = {}
   }
 
 
@@ -51,185 +93,243 @@ class RegionStatsExtension extends GuiExtension {
     super.deactivate()
   }
 
-
-
-  Stats() {
-    let reg = []
-    let point = []
-    reg = this.findRegionsToCompute()
-
-    this.findCsvTiles(reg);
-
-    //point = this.findCsvTiles(reg);
-
-    //pointinpolygon(point, polygon)
-    //this.pointinpolygon(point, reg)
-
+  setStats() {
+    if (this.modal) {
+      this.modal.show()
+    } else {
+      let body = util.div('pane padded')
+      input.input({
+        parent: body,
+        type: 'checkbox',
+        label: 'Add to details',
+        className: 'form-control',
+        onclick: (inp) => {
+          this._options.details = inp.checked
+        }
+      })
+      this.modal = new Modal({
+        title: 'Set statistics',
+        body: body,
+        permanent: true,
+        onsubmit: () => {
+          this.modal.hide()
+        },
+        oncancel: () => {
+          this.modal.hide()
+        }
+      })
+      this.modal.show()
+    }
   }
 
-
-
-
+  stats() {
+    if (!this.gui.extensions.extensions.MapExtension) return
+    let regions = this.gui.extensions.extensions.MapExtension.layersControl.selectedRegions
+    regions.map((reg) => {
+      this.computeRegionStat(reg, true)
+    })
+  }
 
   _checkMapExtension() {
     if (!GuiExtension.is(this.gui.extensions.extensions.MapExtension)) {
       this.gui.alerts.add('MapExtension is not loaded, cant use RegionsStats', 'warning')
     }
-    console.log(this.gui.extensions.extensions.MapExtension)
     return GuiExtension.is(this.gui.extensions.extensions.MapExtension)
   }
-
-  // checkActiveConf() { /// this is wrong ...
-  //   if (!GuiExtension.is(this.gui.extensions.extensions.MapExtension.activeConfiguration))
-  //     this.gui.alerts.add('No active configurations', 'warning')
-  //   return GuiExtension.is(this.gui.extensions.extensions.MapExtension.activeConfiguration)
-  // }
-
 
   findRegionsToCompute() {
     let i = 0
     let regionsreturned = []
     //  if (!this.checkMap()) return
     let regions = this.gui.extensions.extensions.MapExtension.layersControl.selectedRegions
-
-    for (i = 0; i < regions.length; i++) {
-      //console.log(i)
-      if (regions[i].configuration.type == "rectangle") {
-        regionsreturned.push(regions[i])
-      } else if (regions[i].configuration.type == "polygon") {
-        regionsreturned.push(regions[i])
+    regions.map((reg) => {
+      if (isRegion(reg.configuration)) {
+        regionsreturned.push(reg)
       }
-    }
+    })
     return regionsreturned
   }
 
   // when a region is created on the map it computes the stats
-  computeOnCreation() { //just an example, it should be possible to enable/disable cumputing on creation
+  computeOnCreation() {
     let mapext = this.gui.extensions.extensions.MapExtension
     let builder = mapext.builder
-    builder.on('load:layer', (e) => {
-      if (e.configuration.type === 'polygon' || e.configuration.type === 'rectangle') this.findCsvTiles([e])
-    })
+    builder.on('load:layer', this.computeRegionStat, this)
   }
 
+  computeOffCreation() {
+    let mapext = this.gui.extensions.extensions.MapExtension
+    let builder = mapext.builder
+    builder.off('load:layer', this.computeRegionStat, this)
+  }
 
-  /*encontrar los csvtiles*/
-  // the name is wrong
-  findCsvTiles(regions) {
-    let i = 0
-    let bounds = []
-    let references = []
-    let readpolygon = []
-
-    //if (!this.checkActiveConf()) return
-
-    //leafcsv = new L.CsvTiles(url, options) //vps136.cesvima.upm.es/maps/Hippocampus_vglut1/points/points_Hipocampo_HBP21_id4_corte_40_vGlut1_X0_Y0.tif.csv
-    //let csv = new L.CsvTiles("vps136.cesvima.upm.es/maps/Hippocampus_vglut1/points/points_Hipocampo_HBP21_id4_corte_40_vGlut1_X0_Y0.tif.csv")
-    //let csv = new L.CsvTiles("vps136.cesvima.upm.es/maps/Hippocampus_vglut1/points/points_Hipocampo_HBP21_id4_corte_40_vGlut1_X{X}_Y{Y}.tif.csv")
-    //let csv = new L.CsvTiles("/home/cahernanz/Descargas/configuration.json")
-
+  getCalibration() {
     let mapext = this.gui.extensions.extensions.MapExtension
     let active = mapext.activeConfiguration
     let layers = active.layers
-    let id = util.findKeyId('csvTiles', layers, 'type')
-    let centroids = layers[id]
-    let type = centroids.type
-    let url = centroids.url
-    let basepath = this.gui.extensions.extensions.MapExtension.activeConfiguration.basePath
-    let completepath = mapext.builder._joinBasePath(url)
-    //  console.log('completepath: ' + completepath)
-    //
-    centroids.options.worker = true
-    let csv = new L.CsvTiles(completepath, centroids.options)
-    this.csv = csv
-    //let alert = this.gui.alerts.add('Counting ... ', '')
-    let tot = 0
-    let done = 0
-    regions.map((reg) => {
-      let item = mapext.layersControl.regionsWidget.items[reg.configuration._id]
-      let pb = new ProgressBar(item)
-      pb.setHeight(3)
-      let references = csv.getReferences(reg.layer.getBounds())
-      tot = tot + references.length
-      let n = 0
-      let m = 0
-      references.map((ref) => {
-        csv.read(ref, (point) => {
-          //boolean = this.pointinpolygon(point, references)/////ok
-          //  console.log("boolean: ", boolean)
-          //console.log("boolean2: ", boolean2)
-          let poly = (reg.configuration.latlngs[0]).map((a) => {
-            return ([a.lng, a.lat])
-          })
-          if (inside([point.lng, point.lat], poly)) {
-            m++
-          }
-        }, () => {
-          n++
-          done++
-          //alert.setBodyText(`${(100 * done/tot).toPrecision(2)}%`)
-          pb.setBar(100 * n / references.length)
-          if (n === references.length) {
-            pb.remove()
-            this.gui.alerts.add(`${m} points in region ${reg.configuration.name}`)
-          }
-        }, () => {
-          n++
-          done++
-          pb.setBar(100 * n / references.length)
-          //alert.setBodyText(`${(100 * done/tot).toPrecision(2)}%`)
-          if (n === references.length) {
-            pb.remove()
-            this.gui.alerts.add(`${m} points in region ${reg.configuration.name}`)
-          }
-        })
-      }, false)
+    let c = {
+      unit: 'u',
+      dl: 1,
+      da: 1,
+      dv: 1
+    }
+    Object.keys(layers).forEach((id) => {
+      if (layers[id].role && layers[id].role.includes && layers[id].role.includes('calibration')) {
+        let sc = layers[id].options.sizeCal
+        let dc = layers[id].options.depthCal
+        let tileSize = layers[id].options.tileSize
+        let size
+        if (Array.isArray(tileSize)) {
+          size = Math.max(...tileSize)
+        } else if (tileSize > 0) {
+          size = tileSize
+        } else {
+          size = 256 //default
+        }
+        let a = sc / size
+        c = {
+          unit: layers[id].options.unitCal || 'u',
+          dl: a,
+          da: a * a,
+          dv: a * a * dc
+        }
+      }
 
+    })
+    return c
+  }
+
+  computeRegionStat(region, force) {
+    if (!reg.includes(region.configuration.type)) return
+    if (region.configuration.stats && !force) return
+    let calibration = this.getCalibration()
+    let conf = region.configuration
+    let ps = []
+    conf.stats = conf.stats || {}
+    conf.stats.points = conf.stats.points || {}
+    let a = area(conf)
+    let unit = calibration.unit
+    conf.stats.area = {
+      raw: a,
+      calibrated: {
+        value: a * calibration.da,
+        unit: `${unit || 'u'}^2`
+      }
+    }
+    let dv = calibration.dv
+    conf.stats.volume = {
+      calibrated: {
+        value: a * dv,
+        unit: `${unit || 'u'}^3`
+      }
+    }
+    conf.stats.densities = conf.stats.densities || {}
+    ps.push(this.countPoints(region))
+
+    Promise.all(ps).then(() => {
+      this.completeStats(region)
+      if (this._options.details) {
+        region.configuration.details = this._generateDetails(region.configuration)
+      }
+      this.gui.alerts.add(`${region.configuration.name} stats completed`)
     })
   }
 
-
-
-
-
-
-  //////////////////////////////////////////////////
-  //////////////////////////////////////////////////
-  /**
-   * check if a given point is inside a polygon
-   * @param  {array} point   2 dimensions vector
-   * @param  {polygon} polygon vector of 2dim vectors components,
-   * @return {logical}
-   */
-  pointinpolygon(point, polygon) {
-    if (!polygon) {
-      return true;
-    }
-
-    // ray-casting algorithm based on
-    // http://www.ecse.rpi.edu/Homepages/wrf/Research/Short_Notes/pnpoly.html
-    var x = point[0],
-      y = point[1]; // extract x and y form point
-
-    //convert latlngs to a vector of coordinates
-    var vs = polygon;
-
-    var inside = false; //initialize inside variable to false
-
-    //ray-casting algorithm
-    for (var i = 0, j = vs.length - 1; i < vs.length; j = i++) {
-      var xi = vs[i][0],
-        yi = vs[i][1];
-      var xj = vs[j][0],
-        yj = vs[j][1];
-      var intersect = ((yi > y) != (yj > y)) &&
-        (x < (xj - xi) * (y - yi) / (yj - yi) + xi);
-      if (intersect) inside = !inside;
-    }
-    return inside;
+  _generateDetails(conf) {
+    let stats = conf.stats
+    let details = `<p>Statistics: </p>`
+    details += `<p>Area: ${conf.stats.area.calibrated.value}  ${conf.stats.area.calibrated.unit}</p>`
+    details += `<p>Volume : ${conf.stats.area.calibrated.value}  ${conf.stats.volume.calibrated.unit}</p>`
+    Object.keys(conf.stats.points).forEach((id) => {
+      details += `<p>${conf.stats.points[id].name} : ${conf.stats.points[id].raw}</p>`
+    })
+    Object.keys(conf.stats.densities).forEach((id) => {
+      details += `<p>${conf.stats.points[id].name} : ${conf.stats.densities[id].calibrated.toPrecision(2)} ${conf.stats.densities[id].unit}</p>`
+    })
+    details = details + ''
+    return details
   }
 
+
+  completeStats(region) {
+    let pointsid = Object.keys(region.configuration.stats.points)
+    pointsid.map((id) => {
+      let n = region.configuration.stats.points[id].raw
+      region.configuration.stats.densities[id] = {
+        raw: n / region.configuration.stats.area.raw,
+        calibrated: n / region.configuration.stats.area.calibrated.value,
+        unit: `points / ${region.configuration.stats.area.calibrated.unit}`
+      }
+    })
+  }
+
+  /**
+   * compute statistics for the given region
+   * @param  {object} region object with properties layer, configuration, where
+   * @param {boolena} worker use a worker when possible
+   *
+   * Will not return anything, results will be available in the configuration object (async)
+   */
+  countPoints(region) {
+    let mapext = this.gui.extensions.extensions.MapExtension
+    let active = mapext.activeConfiguration
+    let layers = active.layers
+    let points = []
+    Object.keys(layers).map((id) => {
+      if (layers[id].role && layers[id].role.includes && layers[id].role.includes('points')) points.push(id)
+    })
+    if (points.length == 0) return
+    let ps = points.map((id) => {
+      let conf = layers[id]
+      if (conf.type.toLowerCase() === 'csvtiles') {
+        let p = this.countCsvTiles(region, conf, false)
+        let pp = p.then((n) => {
+          region.configuration.stats.points[id] = {
+            name: conf.name,
+            raw: n
+          }
+          return n
+        })
+        return pp
+      }
+    })
+    return Promise.all(ps)
+  }
+
+  countCsvTiles(region, centroids, worker) {
+    let mapext = this.gui.extensions.extensions.MapExtension
+    let type = centroids.type
+    let url = centroids.url
+    let basepath = mapext.activeConfiguration.basePath
+    let completepath = mapext.builder._joinBasePath(url)
+    let csv = new L.CsvTiles(completepath, centroids.options)
+    let references = csv.getReferences(region.layer.getBounds())
+    let ps = references.map((ref) => {
+      let pp = new Promise((res, rej) => {
+        let m = 0
+        csv.read(ref, (point) => {
+          if (inside(point, region.configuration)) {
+            m++
+          }
+        }, () => {
+          res(m)
+        }, () => {
+          res(m)
+        }, worker)
+      })
+      return pp
+    })
+    let p = Promise.all(ps)
+    let pfinal = p.then((value) => {
+      return util.sum(value)
+    })
+    return pfinal
+  }
+
+
 }
+
+
 
 
 

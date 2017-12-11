@@ -13,11 +13,10 @@
     "GuiExtension",
     "electrongui"
   ],
-  "author": "Carlos Hernanz",
+  "author": "Gherardo Varando",
   "license": "MIT",
   "dependencies": {
-    "electrongui": "^0.7.6",
-    "leaflet-csvtiles": "^0.2.8",
-    "point-in-polygon": "^1.0.1"
+    "electrongui": "^1.0.0",
+    "leaflet-csvtiles": "^0.2.8"
   }
 }
