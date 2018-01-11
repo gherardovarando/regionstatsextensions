@@ -1,21 +1,22 @@
-# RegionStatsExtension is an extension for [Atlas](https://github.com/ComputationalIntelligenceGroup/Atlas) application.
+# RegionStatsExtension is an extension for [MultiMap](https://github.com/ComputationalIntelligenceGroup/multimap) application.
 
 
 ## Authors
 
 - Gherardo Varando [gherardo.varando@gmail.com](mailto:gherardo.varando@gmail.com)
-- Carlos Hernanz [cahernanz@tsc.uc3m.es](mailto:cahernanz@tsc.uc3m.es)
+
+The extension was a fork of cahernaz's [RegionStatsExtension](https://github.com/cahernanz/RegionStatsExtension) but has since diverged completely.
+
+## Install
+
+Use the `Extensions>Install extension>download npm module` menu to install **regionstatsextension** from the [npm](https://www.npmjs.com/package/regionstatsextension) registry. 
 
 ## Requeriments
 
+MapExtension must be loaded and activated.
 
 
 ## User guide
 
 
 
-## License
-
-This program is free software; you can redistribute it and/or modify it under the terms of the GNU General Public License as published by the Free Software Foundation; either version 3 of the License, or (at your option) any later version.
-
-This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
