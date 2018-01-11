@@ -17,6 +17,7 @@
   "license": "MIT",
   "dependencies": {
     "electrongui": "^1.0.0",
-    "leaflet-csvtiles": "^0.2.8"
+    "leaflet-csvtiles": "^0.2.8",
+    "leaflet-tilelayer-colorpicker": "^0.1.0"
   }
 }

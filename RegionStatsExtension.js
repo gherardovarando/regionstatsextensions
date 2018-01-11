@@ -30,7 +30,9 @@ const {
   util,
   ProgressBar,
   Modal,
-  input
+  input,
+  ToggleElement,
+  Sidebar
 } = require('electrongui')
 const fs = require('fs')
 require('leaflet-csvtiles')
@@ -40,7 +42,7 @@ const {
   isRegion
 } = require('./src/geometry.js')
 const reg = ['polygon', 'rectangle', 'circle']
-
+require('leaflet-tilelayer-colorpicker')
 
 class RegionStatsExtension extends GuiExtension {
 
@@ -51,7 +53,7 @@ class RegionStatsExtension extends GuiExtension {
       menuTemplate: [{
         label: 'Set statistics',
         click: () => {
-          //this.setStats()
+          this.setStats()
         }
       }, {
         label: 'Auto stats',
@@ -84,42 +86,121 @@ class RegionStatsExtension extends GuiExtension {
   activate() {
     if (this._checkMapExtension()) {
       this.appendMenu()
+      this.configuration = this.gui.extensions.extensions.MapExtension.activeConfiguration
+      this.MapExtension = this.gui.extensions.extensions.MapExtension
+      this.layersControl = this.gui.extensions.extensions.MapExtension.layersControl
       super.activate()
     }
   }
 
   deactivate() {
-    this.removeMenu()
     super.deactivate()
   }
 
   setStats() {
-    if (this.modal) {
-      this.modal.show()
-    } else {
-      let body = util.div('pane padded')
-      input.input({
-        parent: body,
-        type: 'checkbox',
-        label: 'Add to details',
-        className: 'form-control',
-        onclick: (inp) => {
-          this._options.details = inp.checked
-        }
-      })
-      this.modal = new Modal({
-        title: 'Set statistics',
-        body: body,
-        permanent: true,
-        onsubmit: () => {
-          this.modal.hide()
-        },
-        oncancel: () => {
-          this.modal.hide()
-        }
-      })
-      this.modal.show()
+    let body = util.div('pane pane-group')
+    let sidebar = new Sidebar(body, {
+      className: 'pane-sm scrollable'
+    })
+    let points = new ToggleElement(util.div('pane padded'))
+    let calibration = new ToggleElement(util.div('pane padded'))
+    let calInfo = new ToggleElement(util.div('pane padded'))
+    calInfo.appendTo(calibration)
+    calibration.hide()
+    points.appendTo(body)
+    calibration.appendTo(body)
+    let hideAll = function() {
+      points.hide()
+      calibration.hide()
+      sidebar.list.deactiveAll()
     }
+    sidebar.addList()
+    sidebar.addItem({
+      id: 'points',
+      title: 'points',
+      toggle: true,
+      active: true,
+      onclick: () => {
+        hideAll()
+        points.show()
+        sidebar.list.activeItem('points')
+      }
+    })
+    sidebar.addItem({
+      id: 'calibration',
+      title: 'calibration',
+      toggle: true,
+      onclick: () => {
+        hideAll()
+        calibration.show()
+        sidebar.list.activeItem('calibration')
+      }
+    })
+    let configuration = this.MapExtension.activeConfiguration
+    let nowCal
+    if (configuration && configuration.layers) {
+      let calibrations = {}
+      Object.keys(configuration.layers).forEach((key) => {
+        let layerConfig = configuration.layers[key]
+        if (layerConfig.type === 'csvTiles') {
+          if (layerConfig.role && layerConfig.role.includes && layerConfig.role.includes('points')) {
+            var chk = true
+          }
+          input.input({
+            type: 'checkbox',
+            label: layerConfig.name,
+            parent: points,
+            className: 'form-control',
+            checked: chk,
+            onchange: (inp) => {
+              if (inp.checked) {
+                layerConfig.role = `${(layerConfig.role || '').replace('points','')}points`
+              } else {
+                layerConfig.role = (layerConfig.role || '').replace('points', '')
+              }
+            }
+          })
+        } else if (layerConfig.type === 'tileLayer') {
+          calibrations[key] = layerConfig.name
+        } else if (layerConfig.type === 'calibration') {
+          calibrations[key] = layerConfig.name
+        }
+
+        if (layerConfig.role && layerConfig.role.includes && layerConfig.role.includes('calibration')) {
+          nowCal = key
+        }
+      })
+      input.selectInput({
+        choices: calibrations,
+        parent: calibration,
+        className: 'form-control',
+        label: 'Calibration layer',
+        value: nowCal,
+        oninput: (inp) => {
+          Object.keys(calibrations).forEach((key) => {
+            if (configuration.layers[key].role) {
+              configuration.layers[key].role = configuration.layers[key].role.replace('calibration', '')
+            }
+          })
+          configuration.layers[inp.value].role = `${configuration.layers[inp.value].role || ''}calibration`
+          let cal = this.getCalibration()
+          calInfo.clear()
+          calInfo.appendChild(util.div('', `unit : ${cal.unit}`))
+          calInfo.appendChild(util.div('', `dl : ${cal.dl}`))
+          calInfo.appendChild(util.div('', `da : ${cal.da}`))
+          calInfo.appendChild(util.div('', `dv : ${cal.dv}`))
+        }
+      })
+    }
+
+
+    let modal = new Modal({
+      title: 'Set statistics',
+      body: body,
+      width: '500px'
+    })
+
+    modal.show()
   }
 
   stats() {
@@ -133,8 +214,13 @@ class RegionStatsExtension extends GuiExtension {
   _checkMapExtension() {
     if (!GuiExtension.is(this.gui.extensions.extensions.MapExtension)) {
       this.gui.alerts.add('MapExtension is not loaded, cant use RegionsStats', 'warning')
+      return false
     }
-    return GuiExtension.is(this.gui.extensions.extensions.MapExtension)
+    if (!this.gui.extensions.extensions.MapExtension.layersControl) {
+      this.gui.alerts.add('MapExtension is not activated, cant use RegionsStats', 'warning')
+      return false
+    }
+    return true
   }
 
   findRegionsToCompute() {
@@ -237,14 +323,17 @@ class RegionStatsExtension extends GuiExtension {
 
   _generateDetails(conf) {
     let stats = conf.stats
-    let details = `<p>Statistics: </p>`
+    let details = `<strong>Statistics: </strong>`
     details += `<p>Area: ${conf.stats.area.calibrated.value}  ${conf.stats.area.calibrated.unit}</p>`
-    details += `<p>Volume : ${conf.stats.area.calibrated.value}  ${conf.stats.volume.calibrated.unit}</p>`
+    details += `<p>Volume : ${conf.stats.volume.calibrated.value}  ${conf.stats.volume.calibrated.unit}</p>`
+    details += `<strong>Counts:</strong>`
     Object.keys(conf.stats.points).forEach((id) => {
       details += `<p>${conf.stats.points[id].name} : ${conf.stats.points[id].raw}</p>`
     })
+    details += `<strong>Densities:</strong>`
     Object.keys(conf.stats.densities).forEach((id) => {
-      details += `<p>${conf.stats.points[id].name} : ${conf.stats.densities[id].calibrated.toPrecision(2)} ${conf.stats.densities[id].unit}</p>`
+      details += `<p>area density ${conf.stats.points[id].name} : ${conf.stats.densities[id].area.calibrated.toPrecision(2)} ${conf.stats.densities[id].area.unit}</p>`
+      details += `<p>volume density ${conf.stats.points[id].name} : ${conf.stats.densities[id].volume.calibrated.toPrecision(2)} ${conf.stats.densities[id].volume.unit}</p>`
     })
     details = details + ''
     return details
@@ -256,9 +345,16 @@ class RegionStatsExtension extends GuiExtension {
     pointsid.map((id) => {
       let n = region.configuration.stats.points[id].raw
       region.configuration.stats.densities[id] = {
-        raw: n / region.configuration.stats.area.raw,
-        calibrated: n / region.configuration.stats.area.calibrated.value,
-        unit: `points / ${region.configuration.stats.area.calibrated.unit}`
+        area: {
+          raw: n / region.configuration.stats.area.raw,
+          calibrated: n / region.configuration.stats.area.calibrated.value,
+          unit: `points / ${region.configuration.stats.area.calibrated.unit}`
+        },
+        volume: {
+          raw: n / region.configuration.stats.volume.raw,
+          calibrated: n / region.configuration.stats.volume.calibrated.value,
+          unit: `points / ${region.configuration.stats.volume.calibrated.unit}`
+        }
       }
     })
   }
@@ -325,8 +421,6 @@ class RegionStatsExtension extends GuiExtension {
     })
     return pfinal
   }
-
-
 }
 
 
