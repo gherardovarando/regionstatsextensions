@@ -10,10 +10,10 @@
     "type": "git",
     "url": "git+https://github.com/gherardovarando/regionstatsextensions.git"
   },
-  "bugs":{
-  "url": "https://github.com/gherardovarando/regionstatsextensions/issues"
+  "bugs": {
+    "url": "https://github.com/gherardovarando/regionstatsextensions/issues"
   },
-  "homepage":"https://github.com/gherardovarando/regionstatsextensions#readme",
+  "homepage": "https://github.com/gherardovarando/regionstatsextensions#readme",
   "keywords": [
     "leaflet",
     "csvTiles",
@@ -25,7 +25,7 @@
   "license": "MIT",
   "dependencies": {
     "electrongui": "^1.0.0",
-    "leaflet-csvtiles": "^0.2.8",
+    "leaflet-csvtiles": "^0.3.2",
     "leaflet-tilelayer-colorpicker": "^0.1.0"
   }
 }

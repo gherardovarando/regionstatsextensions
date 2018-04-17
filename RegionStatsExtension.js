@@ -77,7 +77,12 @@ class RegionStatsExtension extends GuiExtension {
         click: () => {
           this.stats()
         }
-      }]
+      },{
+      label: 'Export points to csv',
+      click: () =>{
+        this.exportToCsv()
+      }
+    }]
     })
     this._options = {}
   }
@@ -128,6 +133,16 @@ class RegionStatsExtension extends GuiExtension {
     })
     sidebar.addItem({
       id: 'calibration',
+      title: 'calibration',
+      toggle: true,
+      onclick: () => {
+        hideAll()
+        calibration.show()
+        sidebar.list.activeItem('calibration')
+      }
+    })
+    sidebar.addItem({
+      id: 'export points',
       title: 'calibration',
       toggle: true,
       onclick: () => {
@@ -379,12 +394,14 @@ class RegionStatsExtension extends GuiExtension {
       let conf = layers[id]
       if (conf.type.toLowerCase() === 'csvtiles') {
         let p = this.countCsvTiles(region, conf, false)
-        let pp = p.then((n) => {
+        let pp = p.then((result) => {
           region.configuration.stats.points[id] = {
             name: conf.name,
-            raw: n
+            raw: result.value,
+            points: result.points
+            //,references: result.references
           }
-          return n
+          return result.value
         })
         return pp
       }
@@ -403,24 +420,39 @@ class RegionStatsExtension extends GuiExtension {
     let ps = references.map((ref) => {
       let pp = new Promise((res, rej) => {
         let m = 0
+        let points = []
         csv.read(ref, (point) => {
           if (inside(point, region.configuration)) {
+            points[m] = point
             m++
           }
         }, () => {
-          res(m)
+          res({
+            value: m,
+            points: points
+          })
         }, () => {
-          res(m)
+          res({
+            value: m,
+            points: points
+          })
         }, worker)
       })
       return pp
     })
     let p = Promise.all(ps)
-    let pfinal = p.then((value) => {
-      return util.sum(value)
+    let pfinal = p.then((results) => {
+      let values = results.map((res)=>{return res.value})
+      let points = results.reduce((vect, obj)=>{return vect.concat(obj.points)}, [])
+      return {
+        value: util.sum(values),
+        points: points
+        //,references: references
+      }
     })
     return pfinal
   }
+
 }
 
 
