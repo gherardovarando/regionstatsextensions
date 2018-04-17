@@ -411,10 +411,10 @@ class RegionStatsExtension extends GuiExtension {
             raw: result.value
           }
           if (this._savedirectory) {
-            let data = result.points.map((point) => {
+            let data = Papa.unparse(result.points.map((point) => {
               return point.data
-            })
-            fs.writeFile(path.join(this._savedirectory, `${region.name}_${conf.name}_points.csv`), data, (err) => {
+            }))
+            fs.writeFile(path.join(this._savedirectory, `${region.configuration.name}_${conf.name}_points.csv`), data, (err) => {
               if (err) console.log(err)
               else console.log("file written")
             })
