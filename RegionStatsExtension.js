@@ -77,12 +77,12 @@ class RegionStatsExtension extends GuiExtension {
         click: () => {
           this.stats()
         }
-      },{
-      label: 'Export points to csv',
-      click: () =>{
-        this.exportToCsv()
-      }
-    }]
+      }, {
+        label: 'Export points to csv',
+        click: () => {
+          this.exportToCsv()
+        }
+      }]
     })
     this._options = {}
   }
@@ -109,11 +109,13 @@ class RegionStatsExtension extends GuiExtension {
     })
     let points = new ToggleElement(util.div('pane padded'))
     let calibration = new ToggleElement(util.div('pane padded'))
+    let exportpoints = new ToggleElement(util.div('pane padded'))
     let calInfo = new ToggleElement(util.div('pane padded'))
     calInfo.appendTo(calibration)
     calibration.hide()
     points.appendTo(body)
     calibration.appendTo(body)
+    exportpoints.appendTo(body)
     let hideAll = function() {
       points.hide()
       calibration.hide()
@@ -142,13 +144,13 @@ class RegionStatsExtension extends GuiExtension {
       }
     })
     sidebar.addItem({
-      id: 'export points',
-      title: 'calibration',
+      id: 'exportpoints',
+      title: 'export points',
       toggle: true,
       onclick: () => {
         hideAll()
-        calibration.show()
-        sidebar.list.activeItem('calibration')
+        exportpoints.show()
+        sidebar.list.activeItem('exportpoints')
       }
     })
     let configuration = this.MapExtension.activeConfiguration
@@ -183,6 +185,15 @@ class RegionStatsExtension extends GuiExtension {
 
         if (layerConfig.role && layerConfig.role.includes && layerConfig.role.includes('calibration')) {
           nowCal = key
+        }
+      })
+      input.input({
+        parent: exportpoints,
+        type: "text",
+        value: this._savedirectory,
+        label: "saving directory",
+        oninput: (inp) => {
+          this._savedirectory = inp.value
         }
       })
       input.selectInput({
@@ -397,9 +408,16 @@ class RegionStatsExtension extends GuiExtension {
         let pp = p.then((result) => {
           region.configuration.stats.points[id] = {
             name: conf.name,
-            raw: result.value,
-            points: result.points
-            //,references: result.references
+            raw: result.value
+          }
+          if (this._savedirectory) {
+            let data = result.points.map((point) => {
+              return point.data
+            })
+            fs.writeFile(path.join(this._savedirectory, `${region.name}_${conf.name}_points.csv`), data, (err) => {
+              if (err) console.log(err)
+              else console.log("file written")
+            })
           }
           return result.value
         })
@@ -442,8 +460,12 @@ class RegionStatsExtension extends GuiExtension {
     })
     let p = Promise.all(ps)
     let pfinal = p.then((results) => {
-      let values = results.map((res)=>{return res.value})
-      let points = results.reduce((vect, obj)=>{return vect.concat(obj.points)}, [])
+      let values = results.map((res) => {
+        return res.value
+      })
+      let points = results.reduce((vect, obj) => {
+        return vect.concat(obj.points)
+      }, [])
       return {
         value: util.sum(values),
         points: points
